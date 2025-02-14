@@ -4,6 +4,18 @@ from fastapi.middleware.cors import CORSMiddleware
 import openai
 import os
 from datetime import datetime
+import fitz  # PyMuPDF
+
+def extract_text_from_pdf(pdf_path: str) -> str:
+    try:
+        doc = fitz.open(pdf_path)
+        text = ""
+        for page in doc:
+            text += page.get_text() + "\n"
+        doc.close()
+        return text
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error extracting text from PDF: {str(e)}")
 
 # Create uploads directory
 UPLOAD_DIR = "uploads"
@@ -74,10 +86,14 @@ async def upload_pdf(file: UploadFile = File(...)):
         with open(file_path, "wb") as f:
             f.write(contents)
         
+        # Extract text from the PDF
+        text = extract_text_from_pdf(file_path)
+        
         return {
             "message": "File uploaded successfully",
             "filename": filename,
-            "path": file_path
+            "path": file_path,
+            "extracted_text": text
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -1,5 +1,6 @@
 {pkgs}: {
   deps = [
+    pkgs.q
     pkgs.xcbuild
     pkgs.swig
     pkgs.openjpeg

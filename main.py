@@ -1,40 +1,58 @@
+
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 import openai
 import os
-import sys
 
-openai.api_key = os.environ['OPENAI_API_KEY']
-if openai.api_key == "":
-  sys.stderr.write("""
-  You haven't set up your API key yet.
-  
-  If you don't have an API key yet, visit:
-  
-  https://platform.openai.com/signup
+# Initialize FastAPI app
+app = FastAPI(
+    title="Actuarial Memorandum Analysis API",
+    description="API for analyzing actuarial memorandums using GPT-4",
+    version="1.0.0"
+)
 
-  1. Make an account or sign in
-  2. Click "View API Keys" from the top right menu.
-  3. Click "Create new secret key"
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-  Then, open the Secrets Tool and add OPENAI_API_KEY as a secret.
-  """)
-  exit(1)
+# Configure OpenAI
+openai.api_key = os.environ.get('OPENAI_API_KEY')
+if not openai.api_key:
+    raise RuntimeError("OPENAI_API_KEY not found in environment variables")
 
-response = openai.chat.completions.create(
-    model="gpt-4o",
-    messages=[{
-        "role": "system",
-        "content": "You are a helpful assistant."
-    }, {
-        "role": "user",
-        "content": "Who won the world series in 2020?"
-    }, {
-        "role":
-        "assistant",
-        "content":
-        "The Los Angeles Dodgers won the World Series in 2020."
-    }, {
-        "role": "user",
-        "content": "Where was it played?"
-    }])
+@app.get("/")
+async def root():
+    return {"message": "ASOP Compliance API is running!"}
 
-print(response.choices[0].message.content)
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
+
+@app.post("/analyze")
+async def analyze_memo(text: str):
+    try:
+        response = openai.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an actuarial expert analyzing memorandums."
+                },
+                {
+                    "role": "user",
+                    "content": text
+                }
+            ]
+        )
+        return {"analysis": response.choices[0].message.content}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

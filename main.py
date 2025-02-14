@@ -89,11 +89,31 @@ async def upload_pdf(file: UploadFile = File(...)):
         # Extract text from the PDF
         text = extract_text_from_pdf(file_path)
         
+        # Analyze text for ASOP compliance
+        try:
+            response = openai.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are an actuarial expert. Analyze this actuarial memorandum for ASOP compliance. Provide specific insights about compliance with actuarial standards of practice."
+                    },
+                    {
+                        "role": "user",
+                        "content": text
+                    }
+                ]
+            )
+            analysis = response.choices[0].message.content
+        except Exception as e:
+            analysis = f"Error during analysis: {str(e)}"
+        
         return {
-            "message": "File uploaded successfully",
+            "message": "File uploaded and analyzed successfully",
             "filename": filename,
             "path": file_path,
-            "extracted_text": text
+            "extracted_text": text,
+            "asop_analysis": analysis
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -1,0 +1,95 @@
+**store metadata, extracted text, and AI analysis** in a **PostgreSQL database**, utilizing **Replit’s built-in PostgreSQL instance** (`late-moon-48573460`). This ensures **persistent storage** and allows for structured retrieval of processed documents.
+
+---
+
+### **🔹 Instructions for the Agent**  
+1️⃣ **Connect to the PostgreSQL database** provided by Replit (`late-moon-48573460`).  
+2️⃣ **Create a table** (`uploads`) to store:  
+   - `id` (Primary Key)  
+   - `filename` (PDF name)  
+   - `extracted_text` (Raw text from the PDF)  
+   - `asop_analysis` (GPT-4o’s ASOP compliance analysis)  
+   - `created_at` (Timestamp of upload)  
+3️⃣ **Modify the `/upload/` endpoint** to:  
+   - Store **extracted text and AI analysis** into PostgreSQL.  
+4️⃣ **Implement a `/documents/` endpoint** to **retrieve stored records**.  
+
+---
+
+### **🔹 Required Libraries**  
+- `psycopg2-binary` – PostgreSQL database adapter for Python.  
+- `asyncpg` (Optional) – Asynchronous PostgreSQL client for better performance.
+
+To ensure the dependencies are installed, the agent should run:  
+```bash
+pip install psycopg2-binary
+```
+
+---
+
+### **🔹 Example Implementation Context (For Guidance Only)**  
+```python
+import psycopg2
+import os
+from fastapi import FastAPI
+
+app = FastAPI()
+
+# Connect to Replit PostgreSQL Database
+DATABASE_URL = "postgres://late-moon-48573460.replit-user-content.com:5432"
+conn = psycopg2.connect(DATABASE_URL)
+cur = conn.cursor()
+
+# Create Table if not exists
+cur.execute("""
+    CREATE TABLE IF NOT EXISTS uploads (
+        id SERIAL PRIMARY KEY,
+        filename TEXT NOT NULL,
+        extracted_text TEXT NOT NULL,
+        asop_analysis TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+""")
+conn.commit()
+```
+
+---
+
+### **🔹 Modify `/upload/` to Store Data in PostgreSQL**
+The agent must **update the upload handler** to:  
+- Extract text from the PDF.  
+- Run ASOP compliance analysis.  
+- **Insert results into PostgreSQL**.
+
+```python
+def save_to_db(filename, text, analysis):
+    cur.execute("INSERT INTO uploads (filename, extracted_text, asop_analysis) VALUES (%s, %s, %s)", 
+                (filename, text, analysis))
+    conn.commit()
+```
+
+---
+
+### **🔹 Implement `/documents/` to Retrieve Records**  
+The agent should create an API endpoint to fetch **all stored uploads**.
+
+```python
+@app.get("/documents/")
+def get_documents():
+    cur.execute("SELECT id, filename, created_at FROM uploads ORDER BY created_at DESC")
+    records = cur.fetchall()
+    return {"documents": [{"id": r[0], "filename": r[1], "created_at": r[2]} for r in records]}
+```
+
+---
+
+### **✅ Expected Outcome**  
+- **Data is persistently stored** in **Replit’s PostgreSQL database** (`late-moon-48573460`).  
+- **Uploads and AI analysis** are **logged and retrievable** via `/documents/`.  
+- PostgreSQL **ensures scalability** for future enhancements.  
+
+✅ **Once complete, confirm that**:  
+- The table `uploads` **exists** in the PostgreSQL database.  
+- A test PDF **successfully stores data** in the database.  
+- `/documents/` returns stored records.  
+

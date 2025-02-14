@@ -100,8 +100,10 @@ async def analyze_memo(text: str):
             ]
         )
         return {"analysis": response.choices[0].message.content}
+    except openai.OpenAIError as oe:
+        raise HTTPException(status_code=400, detail=f"OpenAI API Error: {str(oe)}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
 @app.post("/upload/")
 async def upload_pdf(file: UploadFile = File(...)):
@@ -138,6 +140,9 @@ async def upload_pdf(file: UploadFile = File(...)):
                 ]
             )
             analysis = response.choices[0].message.content
+        except openai.OpenAIError as oe:
+            analysis = f"OpenAI API Error: {str(oe)}"
+            raise HTTPException(status_code=400, detail=analysis)
         except Exception as e:
 
 

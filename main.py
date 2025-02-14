@@ -50,23 +50,32 @@ def release_db_connection(conn):
 
 # Initialize database table
 def init_db():
-    conn = get_db_connection()
-    cur = conn.cursor()
+    conn = None
     try:
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS uploads (
-                id SERIAL PRIMARY KEY,
-                filename TEXT NOT NULL,
-                extracted_text TEXT NOT NULL,
-                asop_analysis JSONB NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            CREATE INDEX IF NOT EXISTS idx_created_at ON uploads (created_at);
-        """)
-        conn.commit()
+        conn = get_db_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS uploads (
+                    id SERIAL PRIMARY KEY,
+                    filename TEXT NOT NULL,
+                    extracted_text TEXT NOT NULL,
+                    asop_analysis JSONB NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE INDEX IF NOT EXISTS idx_created_at ON uploads (created_at);
+            """)
+            conn.commit()
+        except psycopg2.Error as e:
+            conn.rollback()
+            raise HTTPException(status_code=500, detail=f"Database initialization error: {str(e)}")
+        finally:
+            cur.close()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to connect to database: {str(e)}")
     finally:
-        cur.close()
-        release_db_connection(conn)
+        if conn:
+            release_db_connection(conn)
 
 init_db()
 
@@ -116,8 +125,10 @@ async def analyze_memo(text: str):
 
 @app.post("/upload/")
 async def upload_pdf(file: UploadFile = File(...)):
-    if not file.filename.lower().endswith('.pdf'):
-        raise HTTPException(status_code=400, detail="Only PDF files are allowed")
+    conn = None
+    try:
+        if not file.filename.lower().endswith('.pdf'):
+            raise HTTPException(status_code=400, detail="Only PDF files are allowed")
     
     # Create unique filename with timestamp
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -191,20 +202,29 @@ async def get_document(doc_id: int):
             analysis = f"Error during analysis: {str(e)}"
         
         # Store in database
-        conn = get_db_connection()
-        cur = conn.cursor()
+        conn = None
         try:
-            import json
-            analysis_json = json.dumps({"analysis": analysis})
-            cur.execute(
-                "INSERT INTO uploads (filename, extracted_text, asop_analysis) VALUES (%s, %s, %s::jsonb) RETURNING id",
-                (filename, text, analysis_json)
-            )
-            upload_id = cur.fetchone()[0]
-            conn.commit()
+            conn = get_db_connection()
+            cur = conn.cursor()
+            try:
+                import json
+                analysis_json = json.dumps({"analysis": analysis})
+                cur.execute(
+                    "INSERT INTO uploads (filename, extracted_text, asop_analysis) VALUES (%s, %s, %s::jsonb) RETURNING id",
+                    (filename, text, analysis_json)
+                )
+                upload_id = cur.fetchone()[0]
+                conn.commit()
+            except psycopg2.Error as e:
+                conn.rollback()
+                raise HTTPException(status_code=500, detail=f"Database operation failed: {str(e)}")
+            finally:
+                cur.close()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Database connection failed: {str(e)}")
         finally:
-            cur.close()
-            conn.close()
+            if conn:
+                release_db_connection(conn)
 
         return {
             "message": "File uploaded and analyzed successfully",

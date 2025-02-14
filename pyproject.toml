@@ -9,6 +9,7 @@ python = ">=3.11.0,<3.12"
 openai = "^1.28.2"
 fastapi = "^0.115.8"
 uvicorn = "^0.34.0"
+python-multipart = "^0.0.20"
 
 [tool.poetry.dev-dependencies]
 debugpy = "^1.6.2"

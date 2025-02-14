@@ -33,12 +33,20 @@ app = FastAPI(
 )
 
 # Database connection
+from psycopg2 import pool
+
 DATABASE_URL = os.environ.get('DATABASE_URL')
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL not found in environment variables")
 
+DATABASE_URL += "?sslmode=require"
+db_pool = pool.SimpleConnectionPool(1, 5, DATABASE_URL)  # Min 1, Max 5 connections
+
 def get_db_connection():
-    return psycopg2.connect(DATABASE_URL)
+    return db_pool.getconn()
+
+def release_db_connection(conn):
+    db_pool.putconn(conn)
 
 # Initialize database table
 def init_db():
@@ -160,7 +168,7 @@ async def get_documents():
         return {"documents": documents}
     finally:
         cur.close()
-        conn.close()
+        release_db_connection(conn)
 
 @app.get("/documents/{doc_id}")
 async def get_document(doc_id: int):
@@ -176,7 +184,7 @@ async def get_document(doc_id: int):
         return document
     finally:
         cur.close()
-        conn.close()
+        release_db_connection(conn)
 
 
             analysis = f"Error during analysis: {str(e)}"

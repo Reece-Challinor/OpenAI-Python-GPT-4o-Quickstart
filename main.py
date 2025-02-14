@@ -58,14 +58,15 @@ def init_db():
                 id SERIAL PRIMARY KEY,
                 filename TEXT NOT NULL,
                 extracted_text TEXT NOT NULL,
-                asop_analysis TEXT NOT NULL,
+                asop_analysis JSONB NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
+            );
+            CREATE INDEX IF NOT EXISTS idx_created_at ON uploads (created_at);
         """)
         conn.commit()
     finally:
         cur.close()
-        conn.close()
+        release_db_connection(conn)
 
 init_db()
 
@@ -193,9 +194,11 @@ async def get_document(doc_id: int):
         conn = get_db_connection()
         cur = conn.cursor()
         try:
+            import json
+            analysis_json = json.dumps({"analysis": analysis})
             cur.execute(
-                "INSERT INTO uploads (filename, extracted_text, asop_analysis) VALUES (%s, %s, %s) RETURNING id",
-                (filename, text, analysis)
+                "INSERT INTO uploads (filename, extracted_text, asop_analysis) VALUES (%s, %s, %s::jsonb) RETURNING id",
+                (filename, text, analysis_json)
             )
             upload_id = cur.fetchone()[0]
             conn.commit()

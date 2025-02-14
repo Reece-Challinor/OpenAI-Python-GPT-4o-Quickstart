@@ -107,9 +107,12 @@ DATABASE_URL = os.environ.get('DATABASE_URL')
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL not found in environment variables")
 
-DATABASE_URL += "?sslmode=require"
+# Fix the connection string formatting
+if "?sslmode=" not in DATABASE_URL:
+    DATABASE_URL += "?sslmode=require"
+
 # Create connection pool with min 1 and max 5 connections
-db_pool = pool.SimpleConnectionPool(1, 5, DATABASE_URL)
+db_pool = pool.SimpleConnectionPool(1, 5, dsn=DATABASE_URL)
 
 def get_db_connection():
     """Get a connection from the database pool."""

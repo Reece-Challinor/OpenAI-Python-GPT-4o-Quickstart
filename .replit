@@ -12,3 +12,18 @@ language = "python3"
 [deployment]
 run = ["python3", "main.py"]
 deploymentTarget = "cloudrun"
+
+[workflows]
+runButton = "Run Server"
+
+[[workflows.workflow]]
+name = "Run Server"
+author = 7528366
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python main.py"
+
+[[ports]]
+localPort = 8000
+externalPort = 80

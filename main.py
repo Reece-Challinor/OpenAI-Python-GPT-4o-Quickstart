@@ -21,12 +21,45 @@ def extract_text_from_pdf(pdf_path: str) -> str:
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+import psycopg2
+from psycopg2.extras import RealDictCursor
+from typing import List
+
 # Initialize FastAPI app
 app = FastAPI(
     title="Actuarial Memorandum Analysis API",
     description="API for analyzing actuarial memorandums using GPT-4",
     version="1.0.0"
 )
+
+# Database connection
+DATABASE_URL = os.environ.get('DATABASE_URL')
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL not found in environment variables")
+
+def get_db_connection():
+    return psycopg2.connect(DATABASE_URL)
+
+# Initialize database table
+def init_db():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS uploads (
+                id SERIAL PRIMARY KEY,
+                filename TEXT NOT NULL,
+                extracted_text TEXT NOT NULL,
+                asop_analysis TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.commit()
+    finally:
+        cur.close()
+        conn.close()
+
+init_db()
 
 # Add CORS middleware
 app.add_middleware(
@@ -106,10 +139,60 @@ async def upload_pdf(file: UploadFile = File(...)):
             )
             analysis = response.choices[0].message.content
         except Exception as e:
+
+
+@app.get("/documents/")
+async def get_documents():
+    conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT id, filename, created_at 
+            FROM uploads 
+            ORDER BY created_at DESC
+        """)
+        documents = cur.fetchall()
+        return {"documents": documents}
+    finally:
+        cur.close()
+        conn.close()
+
+@app.get("/documents/{doc_id}")
+async def get_document(doc_id: int):
+    conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT * FROM uploads WHERE id = %s
+        """, (doc_id,))
+        document = cur.fetchone()
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found")
+        return document
+    finally:
+        cur.close()
+        conn.close()
+
+
             analysis = f"Error during analysis: {str(e)}"
         
+        # Store in database
+        conn = get_db_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                "INSERT INTO uploads (filename, extracted_text, asop_analysis) VALUES (%s, %s, %s) RETURNING id",
+                (filename, text, analysis)
+            )
+            upload_id = cur.fetchone()[0]
+            conn.commit()
+        finally:
+            cur.close()
+            conn.close()
+
         return {
             "message": "File uploaded and analyzed successfully",
+            "id": upload_id,
             "filename": filename,
             "path": file_path,
             "extracted_text": text,

@@ -11,6 +11,8 @@ fastapi = "^0.115.8"
 uvicorn = "^0.34.0"
 python-multipart = "^0.0.20"
 pymupdf = "^1.25.3"
+psycopg2-binary = "^2.9.10"
+fitz = "^0.0.1.dev2"
 
 [tool.poetry.dev-dependencies]
 debugpy = "^1.6.2"

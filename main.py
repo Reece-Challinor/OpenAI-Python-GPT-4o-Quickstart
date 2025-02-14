@@ -1,4 +1,35 @@
 
+import logging
+import logging.handlers
+import os
+
+# Configure logging
+log_dir = "logs"
+os.makedirs(log_dir, exist_ok=True)
+
+logger = logging.getLogger('asop_api')
+logger.setLevel(logging.INFO)
+
+# File handler for all logs
+file_handler = logging.handlers.RotatingFileHandler(
+    os.path.join(log_dir, 'asop_api.log'),
+    maxBytes=1024*1024,  # 1MB
+    backupCount=5
+)
+file_handler.setFormatter(logging.Formatter(
+    '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+))
+logger.addHandler(file_handler)
+
+# Console handler for error logs
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.ERROR)
+console_handler.setFormatter(logging.Formatter(
+    '%(levelname)s: %(message)s'
+))
+logger.addHandler(console_handler)
+
+
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 import openai
@@ -52,6 +83,7 @@ def release_db_connection(conn):
 def init_db():
     conn = None
     try:
+        logger.info("Initializing database")
         conn = get_db_connection()
         cur = conn.cursor()
         try:
@@ -68,6 +100,7 @@ def init_db():
             conn.commit()
         except psycopg2.Error as e:
             conn.rollback()
+            logger.error(f"Database initialization error: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Database initialization error: {str(e)}")
         finally:
             cur.close()
@@ -127,7 +160,9 @@ async def analyze_memo(text: str):
 async def upload_pdf(file: UploadFile = File(...)):
     conn = None
     try:
+        logger.info(f"Processing upload request for file: {file.filename}")
         if not file.filename.lower().endswith('.pdf'):
+            logger.warning(f"Invalid file type attempted: {file.filename}")
             raise HTTPException(status_code=400, detail="Only PDF files are allowed")
     
     # Create unique filename with timestamp
@@ -168,6 +203,7 @@ async def upload_pdf(file: UploadFile = File(...)):
 
 @app.get("/documents/")
 async def get_documents():
+    logger.info("Retrieving document list")
     conn = get_db_connection()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
